@@ -5,7 +5,7 @@ use kube::{
 };
 use serde_json::json;
 
-const APPS_NAMESPACE: &str = "deploy-apps";
+use super::APPS_NAMESPACE;
 
 pub async fn create_app_deployment(
     client: Client,
