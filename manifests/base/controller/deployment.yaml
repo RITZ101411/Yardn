@@ -22,3 +22,6 @@ spec:
           env:
             - name: RUST_LOG
               value: "controller=info"
+          envFrom:
+            - configMapRef:
+                name: deploy-config
