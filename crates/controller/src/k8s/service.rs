@@ -33,3 +33,12 @@ pub async fn create_app_service(
 
     services.create(&PostParams::default(), &service).await
 }
+
+pub async fn delete_app_service(client: Client, name: &str) -> Result<(), kube::Error> {
+    let services: Api<Service> = Api::namespaced(client, APPS_NAMESPACE);
+    match services.delete(name, &kube::api::DeleteParams::default()).await {
+        Ok(_) => Ok(()),
+        Err(kube::Error::Api(e)) if e.code == 404 => Ok(()),
+        Err(e) => Err(e),
+    }
+}

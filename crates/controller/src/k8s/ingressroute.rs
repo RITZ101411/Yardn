@@ -42,3 +42,15 @@ pub async fn create_app_ingressroute(
 
     api.create(&PostParams::default(), &ingressroute).await
 }
+
+pub async fn delete_app_ingressroute(client: Client, name: &str) -> Result<(), kube::Error> {
+    let gvk = GroupVersionKind::gvk("traefik.io", "v1alpha1", "IngressRoute");
+    let ar = ApiResource::from_gvk(&gvk);
+    let api: Api<DynamicObject> = Api::namespaced_with(client, APPS_NAMESPACE, &ar);
+
+    match api.delete(name, &kube::api::DeleteParams::default()).await {
+        Ok(_) => Ok(()),
+        Err(kube::Error::Api(e)) if e.code == 404 => Ok(()),
+        Err(e) => Err(e),
+    }
+}

@@ -91,3 +91,16 @@ pub async fn update_app_deployment(
 
     Ok(Some(updated))
 }
+
+pub async fn delete_app_deployment(client: Client, name: &str) -> Result<bool, kube::Error> {
+    let deployments: Api<Deployment> = Api::namespaced(client, APPS_NAMESPACE);
+
+    if deployments.get_opt(name).await?.is_none() {
+        return Ok(false);
+    }
+
+    deployments
+        .delete(name, &kube::api::DeleteParams::default())
+        .await?;
+    Ok(true)
+}
