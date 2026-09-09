@@ -1,14 +1,14 @@
 use axum::{
     Json, Router,
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::post,
+    routing::{post, put},
 };
 use serde::{Deserialize, Serialize};
 
 use crate::app::AppState;
-use crate::k8s::deployment::create_app_deployment;
+use crate::k8s::deployment::{create_app_deployment, update_app_deployment};
 use crate::k8s::ingressroute::create_app_ingressroute;
 use crate::k8s::service::create_app_service;
 
@@ -20,19 +20,28 @@ pub struct CreateAppRequest {
     pub port: i32,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpdateAppRequest {
+    pub image: String,
+    #[serde(default = "default_port")]
+    pub port: i32,
+}
+
 fn default_port() -> i32 {
     80
 }
 
 #[derive(Debug, Serialize)]
-pub struct CreateAppResponse {
+pub struct AppResponse {
     pub name: String,
     pub status: String,
     pub url: String,
 }
 
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/apps", post(create_app))
+    Router::new()
+        .route("/apps", post(create_app))
+        .route("/apps/{name}", put(update_app))
 }
 
 async fn create_app(
@@ -60,7 +69,7 @@ async fn create_app(
     let url = format!("http://{}.{}", req.name, base_domain);
     (
         StatusCode::CREATED,
-        Json(CreateAppResponse {
+        Json(AppResponse {
             name: req.name,
             status: "created".to_string(),
             url,
@@ -69,11 +78,43 @@ async fn create_app(
         .into_response()
 }
 
+async fn update_app(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(req): Json<UpdateAppRequest>,
+) -> impl IntoResponse {
+    let AppState {
+        client,
+        base_domain,
+    } = state;
+
+    match update_app_deployment(client, &name, &req.image, req.port).await {
+        Ok(Some(_)) => {
+            let url = format!("http://{}.{}", name, base_domain);
+            (
+                StatusCode::OK,
+                Json(AppResponse {
+                    name,
+                    status: "updated".to_string(),
+                    url,
+                }),
+            )
+                .into_response()
+        }
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "error": format!("app '{name}' not found") })),
+        )
+            .into_response(),
+        Err(e) => internal_error("deployment", e),
+    }
+}
+
 fn internal_error(resource: &str, e: kube::Error) -> axum::response::Response {
-    tracing::error!("failed to create {resource}: {e}");
+    tracing::error!("failed to update/create {resource}: {e}");
     (
         StatusCode::INTERNAL_SERVER_ERROR,
-        Json(serde_json::json!({ "error": format!("failed to create {resource}: {e}") })),
+        Json(serde_json::json!({ "error": format!("failed to process {resource}: {e}") })),
     )
         .into_response()
 }
