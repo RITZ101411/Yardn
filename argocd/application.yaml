@@ -3,15 +3,6 @@ kind: Application
 metadata:
   name: deploy-system
   namespace: argocd
-  annotations:
-    argocd-image-updater.argoproj.io/image-list: >-
-      controller=ghcr.io/ritz101411/deploy-controller,
-      gateway=ghcr.io/ritz101411/deploy-gateway
-    argocd-image-updater.argoproj.io/controller.update-strategy: digest
-    argocd-image-updater.argoproj.io/controller.allow-tags: regexp:^latest$
-    argocd-image-updater.argoproj.io/gateway.update-strategy: digest
-    argocd-image-updater.argoproj.io/gateway.allow-tags: regexp:^latest$
-    argocd-image-updater.argoproj.io/write-back-method: argocd
 spec:
   project: default
   source:
