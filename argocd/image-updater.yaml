@@ -1,0 +1,19 @@
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: deploy-system
+  namespace: argocd
+spec:
+  applicationRefs:
+    - namePattern: deploy-system
+      images:
+        - alias: controller
+          imageName: ghcr.io/ritz101411/deploy-controller:latest
+          commonUpdateSettings:
+            updateStrategy: digest
+        - alias: gateway
+          imageName: ghcr.io/ritz101411/deploy-gateway:latest
+          commonUpdateSettings:
+            updateStrategy: digest
+      writeBackConfig:
+        method: argocd
