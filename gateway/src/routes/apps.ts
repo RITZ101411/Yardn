@@ -33,6 +33,10 @@ const ErrorResponse = z
   .object({ error: z.string() })
   .openapi('ErrorResponse')
 
+const DeleteResponse = z
+  .object({ name: z.string(), status: z.string() })
+  .openapi('DeleteResponse')
+
 // --- Forward helper (transparent proxy to controller) ---
 async function forward(c: Context, method: string, path: string) {
   const body = await c.req.text()
@@ -102,7 +106,34 @@ const updateRouteDef = createRoute({
   },
 })
 
+const deleteRouteDef = createRoute({
+  method: 'delete',
+  path: '/apps/{name}',
+  tags: ['Apps'],
+  summary: 'Delete an app',
+  request: {
+    params: z.object({ name: z.string() }),
+  },
+  responses: {
+    200: {
+      description: 'App deleted',
+      content: { 'application/json': { schema: DeleteResponse } },
+    },
+    404: {
+      description: 'App not found',
+      content: { 'application/json': { schema: ErrorResponse } },
+    },
+    502: {
+      description: 'Controller unreachable',
+      content: { 'application/json': { schema: ErrorResponse } },
+    },
+  },
+})
+
 apps.openapi(createRouteDef, (c) => forward(c, 'POST', '/apps') as any)
 apps.openapi(updateRouteDef, (c) =>
   forward(c, 'PUT', `/apps/${c.req.param('name')}`) as any,
+)
+apps.openapi(deleteRouteDef, (c) =>
+  forward(c, 'DELETE', `/apps/${c.req.param('name')}`) as any,
 )
