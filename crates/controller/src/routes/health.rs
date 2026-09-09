@@ -1,7 +1,8 @@
 use axum::{Router, http::StatusCode, routing::get};
-use kube::Client;
 
-pub fn routes() -> Router<Client> {
+use crate::app::AppState;
+
+pub fn routes() -> Router<AppState> {
     Router::new().route("/health", get(health))
 }
 

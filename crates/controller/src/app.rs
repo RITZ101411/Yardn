@@ -4,8 +4,14 @@ use tower_http::trace::TraceLayer;
 
 use crate::routes;
 
-pub fn create(client: Client) -> Router {
+#[derive(Clone)]
+pub struct AppState {
+    pub client: Client,
+    pub base_domain: String,
+}
+
+pub fn create(state: AppState) -> Router {
     routes::router()
         .layer(TraceLayer::new_for_http())
-        .with_state(client)
+        .with_state(state)
 }
