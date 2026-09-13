@@ -3,6 +3,8 @@ kind: Kustomization
 
 resources:
   - namespace.yaml
+  - database/service.yaml
+  - database/statefulset.yaml
   - controller/rbac.yaml
   - controller/deployment.yaml
   - controller/service.yaml

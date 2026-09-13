@@ -23,3 +23,9 @@ spec:
               value: "8080"
             - name: CONTROLLER_URL
               value: "http://controller.deploy-system.svc.cluster.local:3000"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: deploy-database
+                  key: url
+                  optional: true
