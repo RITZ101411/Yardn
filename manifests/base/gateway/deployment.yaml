@@ -28,4 +28,3 @@ spec:
                 secretKeyRef:
                   name: deploy-database
                   key: url
-                  optional: true

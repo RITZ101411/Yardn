@@ -38,6 +38,7 @@ export const apps = pgTable(
     name: varchar('name', { length: 63 }).notNull(),
     image: text('image').notNull(),
     port: integer('port').notNull().default(80),
+    url: text('url'),
     desiredState: appDesiredState('desired_state').notNull().default('deployed'),
     observedState: appObservedState('observed_state')
       .notNull()
