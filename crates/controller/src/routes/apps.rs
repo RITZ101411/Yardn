@@ -8,9 +8,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::app::AppState;
-use crate::k8s::deployment::{create_app_deployment, delete_app_deployment, update_app_deployment};
-use crate::k8s::ingressroute::{create_app_ingressroute, delete_app_ingressroute};
-use crate::k8s::service::{create_app_service, delete_app_service};
+use crate::kubernetes::reconcile::{delete_app as delete_app_resources, reconcile_app};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateAppRequest {
@@ -48,25 +46,11 @@ async fn create_app(
     State(state): State<AppState>,
     Json(req): Json<CreateAppRequest>,
 ) -> impl IntoResponse {
-    let AppState {
-        client,
-        base_domain,
-    } = state;
-
-    // 1. Deployment
-    if let Err(e) = create_app_deployment(client.clone(), &req.name, &req.image, req.port).await {
-        return internal_error("deployment", e);
-    }
-    // 2. Service
-    if let Err(e) = create_app_service(client.clone(), &req.name, req.port).await {
-        return internal_error("service", e);
-    }
-    // 3. IngressRoute
-    if let Err(e) = create_app_ingressroute(client, &req.name, req.port, &base_domain).await {
-        return internal_error("ingressroute", e);
+    if let Err(error) = reconcile_app(&state, &req.name, &req.image, req.port).await {
+        return internal_error("app", error);
     }
 
-    let url = format!("http://{}.{}", req.name, base_domain);
+    let url = format!("http://{}.{}", req.name, state.base_domain);
     (
         StatusCode::CREATED,
         Json(AppResponse {
@@ -83,56 +67,27 @@ async fn update_app(
     Path(name): Path<String>,
     Json(req): Json<UpdateAppRequest>,
 ) -> impl IntoResponse {
-    let AppState {
-        client,
-        base_domain,
-    } = state;
-
-    match update_app_deployment(client, &name, &req.image, req.port).await {
-        Ok(Some(_)) => {
-            let url = format!("http://{}.{}", name, base_domain);
-            (
-                StatusCode::OK,
-                Json(AppResponse {
-                    name,
-                    status: "updated".to_string(),
-                    url,
-                }),
-            )
-                .into_response()
-        }
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({ "error": format!("app '{name}' not found") })),
-        )
-            .into_response(),
-        Err(e) => internal_error("deployment", e),
+    if let Err(error) = reconcile_app(&state, &name, &req.image, req.port).await {
+        return internal_error("app", error);
     }
+
+    let url = format!("http://{}.{}", name, state.base_domain);
+    (
+        StatusCode::OK,
+        Json(AppResponse {
+            name,
+            status: "updated".to_string(),
+            url,
+        }),
+    )
+        .into_response()
 }
 
-async fn delete_app(
-    State(state): State<AppState>,
-    Path(name): Path<String>,
-) -> impl IntoResponse {
+async fn delete_app(State(state): State<AppState>, Path(name): Path<String>) -> impl IntoResponse {
     let AppState { client, .. } = state;
 
-    match delete_app_deployment(client.clone(), &name).await {
-        Ok(false) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(serde_json::json!({ "error": format!("app '{name}' not found") })),
-            )
-                .into_response();
-        }
-        Err(e) => return internal_error("deployment", e),
-        Ok(true) => {}
-    }
-
-    if let Err(e) = delete_app_service(client.clone(), &name).await {
-        return internal_error("service", e);
-    }
-    if let Err(e) = delete_app_ingressroute(client, &name).await {
-        return internal_error("ingressroute", e);
+    if let Err(error) = delete_app_resources(client, &name).await {
+        return internal_error("app", error);
     }
 
     (
@@ -144,8 +99,13 @@ async fn delete_app(
 
 fn internal_error(resource: &str, e: kube::Error) -> axum::response::Response {
     tracing::error!("failed to update/create {resource}: {e}");
+    let status = match &e {
+        kube::Error::Api(response) if response.code == 409 => StatusCode::CONFLICT,
+        _ => StatusCode::INTERNAL_SERVER_ERROR,
+    };
+
     (
-        StatusCode::INTERNAL_SERVER_ERROR,
+        status,
         Json(serde_json::json!({ "error": format!("failed to process {resource}: {e}") })),
     )
         .into_response()

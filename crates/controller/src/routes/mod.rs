@@ -6,7 +6,5 @@ pub mod apps;
 pub mod health;
 
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .merge(health::routes())
-        .merge(apps::routes())
+    Router::new().merge(health::routes()).merge(apps::routes())
 }
