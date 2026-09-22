@@ -8,6 +8,6 @@ resources:
   - controller/rbac.yaml
   - controller/deployment.yaml
   - controller/service.yaml
-  - gateway/deployment.yaml
-  - gateway/service.yaml
-  - gateway/ingressroute.yaml
+  - api/deployment.yaml
+  - api/service.yaml
+  - api/ingressroute.yaml

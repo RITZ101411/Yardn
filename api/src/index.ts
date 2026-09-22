@@ -4,5 +4,5 @@ import { app } from './app'
 const port = Number(process.env.PORT) || 8080
 
 serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`Gateway listening on http://localhost:${info.port}`)
+  console.log(`API listening on http://localhost:${info.port}`)
 })

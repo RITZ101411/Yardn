@@ -11,8 +11,8 @@ spec:
           imageName: ghcr.io/ritz101411/deploy-controller:latest
           commonUpdateSettings:
             updateStrategy: digest
-        - alias: gateway
-          imageName: ghcr.io/ritz101411/deploy-gateway:latest
+        - alias: api
+          imageName: ghcr.io/ritz101411/deploy-api:latest
           commonUpdateSettings:
             updateStrategy: digest
       writeBackConfig:

@@ -7,5 +7,5 @@ resources:
 images:
   - name: ghcr.io/ritz101411/deploy-controller
     newTag: latest
-  - name: ghcr.io/ritz101411/deploy-gateway
+  - name: ghcr.io/ritz101411/deploy-api
     newTag: latest
