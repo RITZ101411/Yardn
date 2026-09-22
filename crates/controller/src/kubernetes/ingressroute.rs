@@ -1,20 +1,19 @@
 use kube::{
     Client,
-    api::{Api, DynamicObject, GroupVersionKind, PostParams},
+    api::{Api, DynamicObject, GroupVersionKind, Patch, PatchParams},
     core::ApiResource,
 };
 use serde_json::json;
 
-use super::APPS_NAMESPACE;
+use super::{APPS_NAMESPACE, FIELD_MANAGER, ensure_managed};
 
 /// Create a Traefik IngressRoute exposing the app at `<name>.<base_domain>`.
-pub async fn create_app_ingressroute(
+pub async fn apply_app_ingressroute(
     client: Client,
     name: &str,
     port: i32,
     base_domain: &str,
 ) -> Result<DynamicObject, kube::Error> {
-    // Traefik IngressRoute is a CRD, handled via DynamicObject.
     let gvk = GroupVersionKind::gvk("traefik.io", "v1alpha1", "IngressRoute");
     let ar = ApiResource::from_gvk(&gvk);
     let api: Api<DynamicObject> = Api::namespaced_with(client, APPS_NAMESPACE, &ar);
@@ -27,7 +26,11 @@ pub async fn create_app_ingressroute(
         "metadata": {
             "name": name,
             "namespace": APPS_NAMESPACE,
-            "labels": { "app": name, "managed-by": "deploy" }
+            "labels": {
+                "app": name,
+                "app.kubernetes.io/name": name,
+                "app.kubernetes.io/managed-by": "deployer"
+            }
         },
         "spec": {
             "entryPoints": ["web"],
@@ -40,7 +43,16 @@ pub async fn create_app_ingressroute(
     }))
     .expect("valid ingressroute spec");
 
-    api.create(&PostParams::default(), &ingressroute).await
+    if let Some(existing) = api.get_opt(name).await? {
+        ensure_managed(&existing, name)?;
+    }
+
+    api.patch(
+        name,
+        &PatchParams::apply(FIELD_MANAGER).force(),
+        &Patch::Apply(&ingressroute),
+    )
+    .await
 }
 
 pub async fn delete_app_ingressroute(client: Client, name: &str) -> Result<(), kube::Error> {
