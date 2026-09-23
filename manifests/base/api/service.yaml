@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: gateway
+  name: api
   namespace: deploy-system
 spec:
   type: ClusterIP
   selector:
-    app: gateway
+    app: api
   ports:
     - port: 8080
       targetPort: 8080

@@ -18,9 +18,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: gateway
-            context: ./gateway
-            dockerfile: ./gateway/Dockerfile
+          - name: api
+            context: ./api
+            dockerfile: ./api/Dockerfile
           - name: controller
             context: .
             dockerfile: ./crates/controller/Dockerfile

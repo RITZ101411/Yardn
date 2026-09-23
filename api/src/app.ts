@@ -16,9 +16,9 @@ app.onError((error, c) => {
 app.doc('/doc', {
   openapi: '3.1.0',
   info: {
-    title: 'Deploy Gateway API',
+    title: 'Deploy API',
     version: '0.1.0',
-    description: 'PaaS gateway API for managing apps',
+    description: 'PaaS API for managing apps',
   },
 })
 

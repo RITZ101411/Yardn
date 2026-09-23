@@ -8,8 +8,8 @@ images:
   - name: ghcr.io/ritz101411/deploy-controller
     newName: deploy-controller
     newTag: local
-  - name: ghcr.io/ritz101411/deploy-gateway
-    newName: deploy-gateway
+  - name: ghcr.io/ritz101411/deploy-api
+    newName: deploy-api
     newTag: local
 
 patches:
@@ -22,7 +22,7 @@ patches:
         value: IfNotPresent
   - target:
       kind: Deployment
-      name: gateway
+      name: api
     patch: |-
       - op: add
         path: /spec/template/spec/containers/0/imagePullPolicy

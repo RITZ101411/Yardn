@@ -1,5 +1,5 @@
 target
-gateway
+api
 node_modules
 .git
 .env
