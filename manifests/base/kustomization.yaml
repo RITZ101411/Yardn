@@ -5,9 +5,12 @@ resources:
   - namespace.yaml
   - database/service.yaml
   - database/statefulset.yaml
+  - redis/service.yaml
+  - redis/statefulset.yaml
   - controller/rbac.yaml
   - controller/deployment.yaml
   - controller/service.yaml
   - api/deployment.yaml
   - api/service.yaml
   - api/ingressroute.yaml
+  - worker/deployment.yaml

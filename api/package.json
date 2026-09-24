@@ -14,8 +14,10 @@
     "@hono/node-server": "^1.14.2",
     "@hono/zod-openapi": "^1.6.3",
     "@scalar/hono-api-reference": "^0.12.1",
+    "bullmq": "^6.3.8",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.8.3",
+    "ioredis": "^6.0.0",
     "pg": "^8.23.0",
     "zod": "^4.5.4"
   },

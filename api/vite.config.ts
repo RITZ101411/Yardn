@@ -4,6 +4,12 @@ export default defineConfig({
   build: {
     target: 'node22',
     outDir: 'dist',
-    ssr: 'src/index.ts',
+    ssr: true,
+    rollupOptions: {
+      input: {
+        index: 'src/index.ts',
+        worker: 'src/worker.ts',
+      },
+    },
   },
 })
