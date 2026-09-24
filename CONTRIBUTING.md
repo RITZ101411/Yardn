@@ -1,17 +1,44 @@
 # Contributing
 
+## Development
+
+Install dependencies:
+
+```sh
+npm --prefix api ci
+cargo build
+```
+
+Start the API locally with the Kubernetes PostgreSQL and controller:
+
+```sh
+make dev
+```
+
+Run the required checks before submitting a pull request:
+
+```sh
+make check
+```
+
+Apply the current code and manifests to the local Kubernetes cluster:
+
+```sh
+make deploy-local
+```
+
 ## Pull Requests
 
 - Branch from `main`
 - Branch name: `feat/description`, `fix/description`, `docs/description`, etc.
 - Keep PRs focused — one feature or fix per PR
-- Ensure `cargo build` and `cargo test` pass before submitting
+- Ensure `make check` passes before submitting
 - Direct pushes to `main` are blocked; all changes go through PRs
 
 ## Commit Messages
 
-```
-prefix(crate): content
+```text
+prefix(scope): content
 ```
 
 ### Prefix
@@ -22,18 +49,19 @@ prefix(crate): content
 - `docs` — Documentation
 - `chore` — Build, config, and other maintenance
 
-### Crate
+### Scope
 
-Target crate name: `api`, `cli`, `shared`
+Use the affected component: `api`, `controller`, `cli`, or `shared`.
 
-Can be omitted when changes span multiple crates.
+The scope can be omitted when changes span multiple components.
 
 ### Examples
 
-```
+```text
 feat(api): add project deploy endpoint
+fix(controller): reject unmanaged resources
 fix(cli): correct tar.gz compression excluding node_modules
 refactor(api): split K8s operations into service layer
-docs: add CONTRIBUTING.md
-chore(api): setup crate and add health endpoint
+docs: update contributing guide
+chore: add local development commands
 ```
