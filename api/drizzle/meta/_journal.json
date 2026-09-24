@@ -15,6 +15,13 @@
       "when": 1789413072845,
       "tag": "0001_flawless_kate_bishop",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790233276344,
+      "tag": "0002_high_hammerhead",
+      "breakpoints": true
     }
   ]
 }
