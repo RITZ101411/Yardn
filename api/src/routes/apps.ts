@@ -46,14 +46,6 @@ const ErrorResponse = z.object({
   appId: z.string().uuid().optional(),
 }).openapi('AppErrorResponse')
 
-const DeleteResponse = z.object({
-  id: z.string().uuid(),
-  name: z.string(),
-  status: z.literal('deleted'),
-}).openapi('DeleteAppResponse')
-
-type ControllerAppResponse = { name: string; status: string; url: string }
-
 function serializeApp(app: typeof appsTable.$inferSelect) {
   return {
     ...app,
@@ -247,20 +239,11 @@ apps.openapi(createAppRoute, async (c) => {
   }
 
   try {
-    const result = await requestController<ControllerAppResponse>('POST', '/apps', input)
-    const [updated] = await getDatabase()
-      .update(appsTable)
-      .set({
-        observedState: 'provisioned',
-        url: result.url,
-        updatedAt: new Date(),
-      })
-      .where(eq(appsTable.id, app.id))
-      .returning()
-    return c.json(serializeApp(updated), 201)
-  } catch (error) {
+    await enqueueReconcileApp(app.id)
+    return c.json(serializeApp(app), 202)
+  } catch {
     await markFailed(app.id)
-    return c.json({ error: error instanceof Error ? error.message : 'controller error', appId: app.id }, 502)
+    return c.json({ error: 'job queue unavailable', appId: app.id }, 503)
   }
 })
 
@@ -291,7 +274,7 @@ apps.openapi(updateAppRoute, async (c) => {
   const app = await findApp(projectId, name)
   if (!app) return c.json({ error: `app '${name}' not found` }, 404)
 
-  await getDatabase()
+  const [updated] = await getDatabase()
     .update(appsTable)
     .set({
       image: input.image,
@@ -300,6 +283,7 @@ apps.openapi(updateAppRoute, async (c) => {
       updatedAt: new Date(),
     })
     .where(eq(appsTable.id, app.id))
+    .returning()
 
   try {
     const result = await requestController<ControllerAppResponse>(
@@ -319,8 +303,7 @@ apps.openapi(updateAppRoute, async (c) => {
     return c.json(serializeApp(updated), 200)
   } catch (error) {
     await markFailed(app.id)
-    const status = error instanceof ControllerError && error.status === 404 ? 404 : 502
-    return c.json({ error: error instanceof Error ? error.message : 'controller error', appId: app.id }, status)
+    return c.json({ error: 'job queue unavailable', appId: app.id }, 503)
   }
 })
 
@@ -329,17 +312,21 @@ apps.openapi(deleteAppRoute, async (c) => {
   const app = await findApp(projectId, name)
   if (!app) return c.json({ error: `app '${name}' not found` }, 404)
 
-  try {
-    await requestController<unknown>('DELETE', `/apps/${encodeURIComponent(name)}`)
-  } catch (error) {
-    if (!(error instanceof ControllerError && error.status === 404)) {
-      await markFailed(app.id)
-      return c.json({ error: error instanceof Error ? error.message : 'controller error', appId: app.id }, 502)
-    }
-  }
-
-  await getDatabase()
-    .delete(appsTable)
+  const [updated] = await getDatabase()
+    .update(appsTable)
+    .set({
+      desiredState: 'deleted',
+      observedState: 'pending',
+      updatedAt: new Date(),
+    })
     .where(eq(appsTable.id, app.id))
-  return c.json({ id: app.id, name, status: 'deleted' as const }, 200)
+    .returning()
+
+  try {
+    await enqueueDeleteApp(app.id)
+    return c.json(serializeApp(updated), 202)
+  } catch {
+    await markFailed(app.id)
+    return c.json({ error: 'job queue unavailable', appId: app.id }, 503)
+  }
 })
