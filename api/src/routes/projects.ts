@@ -1,7 +1,10 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
 import { asc, eq } from 'drizzle-orm'
 import { getDatabase } from '../db/client'
-import { projects as projectsTable } from '../db/schema'
+import {
+  apps as appsTable,
+  projects as projectsTable,
+} from '../db/schema'
 
 export const projects = new OpenAPIHono()
 
@@ -35,6 +38,12 @@ function serializeProject(project: typeof projectsTable.$inferSelect) {
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),
   }
+}
+
+function isForeignKeyViolation(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false
+  if ('code' in error && error.code === '23503') return true
+  return 'cause' in error && isForeignKeyViolation(error.cause)
 }
 
 const createProjectRoute = createRoute({
@@ -132,6 +141,10 @@ const deleteProjectRoute = createRoute({
       description: 'Project not found',
       content: { 'application/json': { schema: ProjectErrorResponse } },
     },
+    409: {
+      description: 'Project still contains apps',
+      content: { 'application/json': { schema: ProjectErrorResponse } },
+    },
   },
 })
 
@@ -183,10 +196,30 @@ projects.openapi(updateProjectRoute, async (c) => {
 
 projects.openapi(deleteProjectRoute, async (c) => {
   const { projectId } = c.req.valid('param')
-  const [project] = await getDatabase()
-    .delete(projectsTable)
-    .where(eq(projectsTable.id, projectId))
-    .returning({ id: projectsTable.id })
+  const [app] = await getDatabase()
+    .select({ id: appsTable.id })
+    .from(appsTable)
+    .where(eq(appsTable.projectId, projectId))
+    .limit(1)
+
+  if (app) {
+    return c.json({ error: 'project still contains apps' }, 409)
+  }
+
+  let project: { id: string } | undefined
+
+  try {
+    const deleted = await getDatabase()
+      .delete(projectsTable)
+      .where(eq(projectsTable.id, projectId))
+      .returning({ id: projectsTable.id })
+    project = deleted[0]
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      return c.json({ error: 'project still contains apps' }, 409)
+    }
+    throw error
+  }
 
   if (!project) return c.json({ error: 'project not found' }, 404)
 

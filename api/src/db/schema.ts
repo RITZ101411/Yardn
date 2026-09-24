@@ -46,6 +46,9 @@ export const apps = pgTable(
   'apps',
   {
     id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'restrict' }),
     name: varchar('name', { length: 63 }).notNull(),
     image: text('image').notNull(),
     port: integer('port').notNull().default(80),
