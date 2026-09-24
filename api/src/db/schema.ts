@@ -22,10 +22,33 @@ export const appObservedState = pgEnum('app_observed_state', [
   'unknown',
 ])
 
+export const projects = pgTable('projects', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 100 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
+export const jobType = pgEnum('job_type', ['deploy', 'update', 'delete'])
+
+export const jobStatus = pgEnum('job_status', [
+  'queued',
+  'running',
+  'succeeded',
+  'failed',
+])
+
 export const apps = pgTable(
   'apps',
   {
     id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'restrict' }),
     name: varchar('name', { length: 63 }).notNull(),
     image: text('image').notNull(),
     port: integer('port').notNull().default(80),
@@ -46,3 +69,7 @@ export const apps = pgTable(
 
 export type App = typeof apps.$inferSelect
 export type NewApp = typeof apps.$inferInsert
+export type Job = typeof jobs.$inferSelect
+export type NewJob = typeof jobs.$inferInsert
+export type Project = typeof projects.$inferSelect
+export type NewProject = typeof projects.$inferInsert
