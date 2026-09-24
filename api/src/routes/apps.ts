@@ -2,7 +2,10 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
 import { asc, eq } from 'drizzle-orm'
 import { getDatabase } from '../db/client'
 import { apps as appsTable } from '../db/schema'
-import { ControllerError, requestController } from '../services/controller'
+import {
+  enqueueDeleteApp,
+  enqueueReconcileApp,
+} from '../jobs/deployments'
 
 export const apps = new OpenAPIHono()
 
@@ -38,14 +41,6 @@ const ErrorResponse = z.object({
   appId: z.string().uuid().optional(),
 }).openapi('AppErrorResponse')
 
-const DeleteResponse = z.object({
-  id: z.string().uuid(),
-  name: z.string(),
-  status: z.literal('deleted'),
-}).openapi('DeleteAppResponse')
-
-type ControllerAppResponse = { name: string; status: string; url: string }
-
 function serializeApp(app: typeof appsTable.$inferSelect) {
   return {
     ...app,
@@ -80,9 +75,9 @@ const createAppRoute = createRoute({
   method: 'post', path: '/apps', tags: ['Apps'], summary: 'Create an app',
   request: { body: { content: { 'application/json': { schema: CreateAppRequest } } } },
   responses: {
-    201: { description: 'App created', content: { 'application/json': { schema: AppResponse } } },
+    202: { description: 'App accepted for deployment', content: { 'application/json': { schema: AppResponse } } },
     409: { description: 'App name already exists', content: { 'application/json': { schema: ErrorResponse } } },
-    502: { description: 'Controller error', content: { 'application/json': { schema: ErrorResponse } } },
+    503: { description: 'Job queue unavailable', content: { 'application/json': { schema: ErrorResponse } } },
   },
 })
 
@@ -106,9 +101,9 @@ const updateAppRoute = createRoute({
   method: 'put', path: '/apps/{name}', tags: ['Apps'], summary: 'Update an app',
   request: { params: AppNameParams, body: { content: { 'application/json': { schema: UpdateAppRequest } } } },
   responses: {
-    200: { description: 'App updated', content: { 'application/json': { schema: AppResponse } } },
+    202: { description: 'App update accepted', content: { 'application/json': { schema: AppResponse } } },
     404: { description: 'App not found', content: { 'application/json': { schema: ErrorResponse } } },
-    502: { description: 'Controller error', content: { 'application/json': { schema: ErrorResponse } } },
+    503: { description: 'Job queue unavailable', content: { 'application/json': { schema: ErrorResponse } } },
   },
 })
 
@@ -116,9 +111,9 @@ const deleteAppRoute = createRoute({
   method: 'delete', path: '/apps/{name}', tags: ['Apps'], summary: 'Delete an app',
   request: { params: AppNameParams },
   responses: {
-    200: { description: 'App deleted', content: { 'application/json': { schema: DeleteResponse } } },
+    202: { description: 'App deletion accepted', content: { 'application/json': { schema: AppResponse } } },
     404: { description: 'App not found', content: { 'application/json': { schema: ErrorResponse } } },
-    502: { description: 'Controller error', content: { 'application/json': { schema: ErrorResponse } } },
+    503: { description: 'Job queue unavailable', content: { 'application/json': { schema: ErrorResponse } } },
   },
 })
 
@@ -138,20 +133,11 @@ apps.openapi(createAppRoute, async (c) => {
   }
 
   try {
-    const result = await requestController<ControllerAppResponse>('POST', '/apps', input)
-    const [updated] = await getDatabase()
-      .update(appsTable)
-      .set({
-        observedState: 'provisioned',
-        url: result.url,
-        updatedAt: new Date(),
-      })
-      .where(eq(appsTable.id, app.id))
-      .returning()
-    return c.json(serializeApp(updated), 201)
-  } catch (error) {
+    await enqueueReconcileApp(app.id)
+    return c.json(serializeApp(app), 202)
+  } catch {
     await markFailed(app.id)
-    return c.json({ error: error instanceof Error ? error.message : 'controller error', appId: app.id }, 502)
+    return c.json({ error: 'job queue unavailable', appId: app.id }, 503)
   }
 })
 
@@ -175,7 +161,7 @@ apps.openapi(updateAppRoute, async (c) => {
   const app = await findApp(name)
   if (!app) return c.json({ error: `app '${name}' not found` }, 404)
 
-  await getDatabase()
+  const [updated] = await getDatabase()
     .update(appsTable)
     .set({
       image: input.image,
@@ -184,23 +170,14 @@ apps.openapi(updateAppRoute, async (c) => {
       updatedAt: new Date(),
     })
     .where(eq(appsTable.id, app.id))
+    .returning()
 
   try {
-    const result = await requestController<ControllerAppResponse>('PUT', `/apps/${encodeURIComponent(name)}`, input)
-    const [updated] = await getDatabase()
-      .update(appsTable)
-      .set({
-        observedState: 'provisioned',
-        url: result.url,
-        updatedAt: new Date(),
-      })
-      .where(eq(appsTable.id, app.id))
-      .returning()
-    return c.json(serializeApp(updated), 200)
-  } catch (error) {
+    await enqueueReconcileApp(app.id)
+    return c.json(serializeApp(updated), 202)
+  } catch {
     await markFailed(app.id)
-    const status = error instanceof ControllerError && error.status === 404 ? 404 : 502
-    return c.json({ error: error instanceof Error ? error.message : 'controller error', appId: app.id }, status)
+    return c.json({ error: 'job queue unavailable', appId: app.id }, 503)
   }
 })
 
@@ -209,17 +186,21 @@ apps.openapi(deleteAppRoute, async (c) => {
   const app = await findApp(name)
   if (!app) return c.json({ error: `app '${name}' not found` }, 404)
 
-  try {
-    await requestController<unknown>('DELETE', `/apps/${encodeURIComponent(name)}`)
-  } catch (error) {
-    if (!(error instanceof ControllerError && error.status === 404)) {
-      await markFailed(app.id)
-      return c.json({ error: error instanceof Error ? error.message : 'controller error', appId: app.id }, 502)
-    }
-  }
-
-  await getDatabase()
-    .delete(appsTable)
+  const [updated] = await getDatabase()
+    .update(appsTable)
+    .set({
+      desiredState: 'deleted',
+      observedState: 'pending',
+      updatedAt: new Date(),
+    })
     .where(eq(appsTable.id, app.id))
-  return c.json({ id: app.id, name, status: 'deleted' as const }, 200)
+    .returning()
+
+  try {
+    await enqueueDeleteApp(app.id)
+    return c.json(serializeApp(updated), 202)
+  } catch {
+    await markFailed(app.id)
+    return c.json({ error: 'job queue unavailable', appId: app.id }, 503)
+  }
 })

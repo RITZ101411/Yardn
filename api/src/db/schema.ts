@@ -22,15 +22,6 @@ export const appObservedState = pgEnum('app_observed_state', [
   'unknown',
 ])
 
-export const jobType = pgEnum('job_type', ['deploy', 'update', 'delete'])
-
-export const jobStatus = pgEnum('job_status', [
-  'queued',
-  'running',
-  'succeeded',
-  'failed',
-])
-
 export const apps = pgTable(
   'apps',
   {
@@ -53,23 +44,5 @@ export const apps = pgTable(
   (table) => [uniqueIndex('apps_name_unique').on(table.name)],
 )
 
-export const jobs = pgTable('jobs', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  appId: uuid('app_id')
-    .notNull()
-    .references(() => apps.id, { onDelete: 'cascade' }),
-  type: jobType('type').notNull(),
-  status: jobStatus('status').notNull().default('queued'),
-  attempt: integer('attempt').notNull().default(0),
-  errorMessage: text('error_message'),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  startedAt: timestamp('started_at', { withTimezone: true }),
-  finishedAt: timestamp('finished_at', { withTimezone: true }),
-})
-
 export type App = typeof apps.$inferSelect
 export type NewApp = typeof apps.$inferInsert
-export type Job = typeof jobs.$inferSelect
-export type NewJob = typeof jobs.$inferInsert

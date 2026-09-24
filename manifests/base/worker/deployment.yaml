@@ -1,26 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: api
+  name: worker
   namespace: deploy-system
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: api
+      app: worker
   template:
     metadata:
       labels:
-        app: api
+        app: worker
     spec:
       containers:
-        - name: api
+        - name: worker
           image: ghcr.io/ritz101411/deploy-api
-          ports:
-            - containerPort: 8080
+          command: ["node", "dist/worker.js"]
           env:
-            - name: PORT
-              value: "8080"
             - name: CONTROLLER_URL
               value: "http://controller.deploy-system.svc.cluster.local:3000"
             - name: DATABASE_URL
