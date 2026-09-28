@@ -5,7 +5,7 @@ import {
   apps as appsTable,
   projects as projectsTable,
 } from '../db/schema'
-import { ControllerError, requestController } from '../services/controller'
+import { enqueueDeleteApp, enqueueReconcileApp } from '../jobs/deployments'
 
 export const apps = new OpenAPIHono()
 
@@ -106,8 +106,8 @@ const createAppRoute = createRoute({
     },
   },
   responses: {
-    201: {
-      description: 'App created',
+    202: {
+      description: 'App accepted for deployment',
       content: { 'application/json': { schema: AppResponse } },
     },
     404: {
@@ -118,8 +118,8 @@ const createAppRoute = createRoute({
       description: 'App name already exists',
       content: { 'application/json': { schema: ErrorResponse } },
     },
-    502: {
-      description: 'Controller error',
+    503: {
+      description: 'Job queue unavailable',
       content: { 'application/json': { schema: ErrorResponse } },
     },
   },
@@ -179,16 +179,16 @@ const updateAppRoute = createRoute({
     },
   },
   responses: {
-    200: {
-      description: 'App updated',
+    202: {
+      description: 'App update accepted',
       content: { 'application/json': { schema: AppResponse } },
     },
     404: {
       description: 'App not found',
       content: { 'application/json': { schema: ErrorResponse } },
     },
-    502: {
-      description: 'Controller error',
+    503: {
+      description: 'Job queue unavailable',
       content: { 'application/json': { schema: ErrorResponse } },
     },
   },
@@ -201,16 +201,16 @@ const deleteAppRoute = createRoute({
   summary: 'Delete an app from a project',
   request: { params: ProjectAppParams },
   responses: {
-    200: {
-      description: 'App deleted',
-      content: { 'application/json': { schema: DeleteResponse } },
+    202: {
+      description: 'App deletion accepted',
+      content: { 'application/json': { schema: AppResponse } },
     },
     404: {
       description: 'App not found',
       content: { 'application/json': { schema: ErrorResponse } },
     },
-    502: {
-      description: 'Controller error',
+    503: {
+      description: 'Job queue unavailable',
       content: { 'application/json': { schema: ErrorResponse } },
     },
   },
@@ -286,22 +286,9 @@ apps.openapi(updateAppRoute, async (c) => {
     .returning()
 
   try {
-    const result = await requestController<ControllerAppResponse>(
-      'PUT',
-      `/apps/${encodeURIComponent(name)}`,
-      input,
-    )
-    const [updated] = await getDatabase()
-      .update(appsTable)
-      .set({
-        observedState: 'provisioned',
-        url: result.url,
-        updatedAt: new Date(),
-      })
-      .where(eq(appsTable.id, app.id))
-      .returning()
-    return c.json(serializeApp(updated), 200)
-  } catch (error) {
+    await enqueueReconcileApp(app.id)
+    return c.json(serializeApp(updated), 202)
+  } catch {
     await markFailed(app.id)
     return c.json({ error: 'job queue unavailable', appId: app.id }, 503)
   }
