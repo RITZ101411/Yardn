@@ -5,12 +5,19 @@ set -euo pipefail
 namespace="${DEPLOY_NAMESPACE:-deploy-system}"
 postgres_port="${POSTGRES_LOCAL_PORT:-15432}"
 controller_port="${CONTROLLER_LOCAL_PORT:-13000}"
+redis_port="${REDIS_LOCAL_PORT:-16379}"
 api_port="${API_LOCAL_PORT:-18080}"
 postgres_pid=''
 controller_pid=''
+redis_pid=''
 temp_directory=''
 
 cleanup() {
+  if [[ -n "$redis_pid" ]] && kill -0 "$redis_pid" 2>/dev/null; then
+    kill "$redis_pid" 2>/dev/null || true
+    wait "$redis_pid" 2>/dev/null || true
+  fi
+
   if [[ -n "$controller_pid" ]] && kill -0 "$controller_pid" 2>/dev/null; then
     kill "$controller_pid" 2>/dev/null || true
     wait "$controller_pid" 2>/dev/null || true
@@ -76,6 +83,16 @@ start_controller_forward() {
   wait_for_port "$controller_pid" "$controller_port" "${temp_directory}/controller.log"
 }
 
+start_redis_forward() {
+  kubectl port-forward \
+    -n "$namespace" \
+    service/redis \
+    "${redis_port}:6379" \
+    >"${temp_directory}/redis.log" 2>&1 &
+  redis_pid=$!
+  wait_for_port "$redis_pid" "$redis_port" "${temp_directory}/redis.log"
+}
+
 load_database_url() {
   local username
   local password
@@ -125,8 +142,11 @@ main() {
 
   if [[ "$command" == 'dev' ]]; then
     start_controller_forward
+    start_redis_forward
     PORT="$api_port" \
     CONTROLLER_URL="http://127.0.0.1:${controller_port}" \
+    REDIS_HOST=127.0.0.1 \
+    REDIS_PORT="$redis_port" \
     npm --prefix api run dev
   fi
 }

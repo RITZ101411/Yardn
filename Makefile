@@ -1,6 +1,7 @@
 .PHONY: check dev migrate-local deploy-local
 
 check:
+	npm --prefix api run typecheck
 	npm --prefix api run build
 	cargo fmt --check
 	cargo build
@@ -16,6 +17,7 @@ deploy-local: migrate-local
 	docker build -t deploy-api:local ./api
 	docker build -t deploy-controller:local -f crates/controller/Dockerfile .
 	kubectl apply -k manifests/overlays/local
-	kubectl rollout restart deployment/api deployment/controller -n deploy-system
+	kubectl rollout restart deployment/api deployment/worker deployment/controller -n deploy-system
 	kubectl rollout status deployment/api -n deploy-system
+	kubectl rollout status deployment/worker -n deploy-system
 	kubectl rollout status deployment/controller -n deploy-system

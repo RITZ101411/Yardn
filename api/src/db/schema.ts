@@ -33,15 +33,6 @@ export const projects = pgTable('projects', {
     .defaultNow(),
 })
 
-export const jobType = pgEnum('job_type', ['deploy', 'update', 'delete'])
-
-export const jobStatus = pgEnum('job_status', [
-  'queued',
-  'running',
-  'succeeded',
-  'failed',
-])
-
 export const apps = pgTable(
   'apps',
   {
@@ -69,7 +60,5 @@ export const apps = pgTable(
 
 export type App = typeof apps.$inferSelect
 export type NewApp = typeof apps.$inferInsert
-export type Job = typeof jobs.$inferSelect
-export type NewJob = typeof jobs.$inferInsert
 export type Project = typeof projects.$inferSelect
 export type NewProject = typeof projects.$inferInsert
