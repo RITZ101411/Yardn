@@ -144,6 +144,9 @@ main() {
     start_controller_forward
     start_redis_forward
     PORT="$api_port" \
+    BETTER_AUTH_URL="http://127.0.0.1:${api_port}" \
+    BETTER_AUTH_TRUSTED_ORIGINS="http://127.0.0.1:${api_port}" \
+    AUTH_SIGN_UP_ENABLED="${AUTH_SIGN_UP_ENABLED:-true}" \
     CONTROLLER_URL="http://127.0.0.1:${controller_port}" \
     REDIS_HOST=127.0.0.1 \
     REDIS_PORT="$redis_port" \

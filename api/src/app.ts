@@ -1,11 +1,13 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
+import { auth } from './auth/auth'
 import { health } from './routes/health'
 import { apps } from './routes/apps'
 import { projects } from './routes/projects'
 
 export const app = new OpenAPIHono()
 
+app.all('/auth/*', (c) => auth.handler(c.req.raw))
 app.route('/', health)
 app.route('/', apps)
 app.route('/', projects)

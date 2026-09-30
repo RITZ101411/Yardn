@@ -28,6 +28,28 @@ spec:
                 secretKeyRef:
                   name: deploy-database
                   key: url
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: deploy-auth
+                  key: secret
+            - name: BETTER_AUTH_URL
+              valueFrom:
+                secretKeyRef:
+                  name: deploy-auth
+                  key: url
+            - name: BETTER_AUTH_TRUSTED_ORIGINS
+              valueFrom:
+                secretKeyRef:
+                  name: deploy-auth
+                  key: trusted-origins
+                  optional: true
+            - name: AUTH_SIGN_UP_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: deploy-auth
+                  key: sign-up-enabled
+                  optional: true
             - name: REDIS_HOST
               value: redis.deploy-system.svc.cluster.local
             - name: REDIS_PORT
